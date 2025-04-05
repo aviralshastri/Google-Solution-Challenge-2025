@@ -55,7 +55,7 @@ export async function middleware(request) {
     if (verifyResult.valid) {
       if (pathname === "/profile" || pathname.startsWith("/profile/")) {
         const baseUrl =
-          process.env.NEXT_PUBLIC_BASE_URL || new URL(request.url).origin;
+          process.env.BASE_URL || new URL(request.url).origin;
         const tokenDataResponse = await fetch(
           `${baseUrl}/api/auth/token-get-data?token=${token}`,
           {
