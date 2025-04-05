@@ -81,16 +81,6 @@ export default function CreatePost() {
           } catch (error) {
             console.error("Error fetching user profile:", error);
           }
-        } else {
-          showAlert(
-            "error",
-            "Authentication Error",
-            "Please sign in to create a post"
-          );
-          // Redirect to login page if user is not authenticated
-          setTimeout(() => {
-            router.push("/login");
-          }, 2000);
         }
       } catch (error) {
         console.error("Error fetching user data:", error);
@@ -99,7 +89,6 @@ export default function CreatePost() {
           "Authentication Error",
           "Please sign in to create a post"
         );
-        // Redirect to login page if user is not authenticated
         setTimeout(() => {
           router.push("/login");
         }, 2000);
@@ -205,26 +194,6 @@ export default function CreatePost() {
     return imageUrls;
   };
 
-  const updateUserPosts = async (postId) => {
-    if (!userId) return;
-
-    try {
-      const userDocRef = doc(db, "accounts", userId);
-      const userDoc = await getDoc(userDocRef);
-
-      if (userDoc.exists()) {
-        await updateDoc(userDocRef, {
-          posts: arrayUnion(postId),
-        });
-      } else {
-        console.error("User document not found");
-        showAlert("error", "User Error", "User account not found");
-      }
-    } catch (error) {
-      console.error("Error updating user posts:", error);
-      showAlert("error", "Update Error", "Failed to update user data");
-    }
-  };
 
   const handlePublish = async () => {
     if (!title.trim()) {
@@ -280,9 +249,6 @@ export default function CreatePost() {
       }
 
       const docRef = await addDoc(collection(db, "posts"), postData);
-      
-      // Don't log post ID to console for security
-      await updateUserPosts(docRef.id);
 
       showAlert(
         "success",
@@ -290,14 +256,12 @@ export default function CreatePost() {
         "Your post has been published successfully!"
       );
       
-      // Reset the form
       setTitle("");
       setPostContent("");
       setImageFiles([]);
       setImagePreviewUrls([]);
       setSelectedTags([]);
       
-      // Redirect to profile page after a short delay
       setTimeout(() => {
         router.push("/profile");
       }, 1500);
