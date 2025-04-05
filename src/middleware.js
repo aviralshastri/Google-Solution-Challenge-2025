@@ -40,7 +40,7 @@ export async function middleware(request) {
       return NextResponse.next();
     }
     const verifyResponse = await fetch(
-      new URL("/api/auth/token-verify", request.url),
+      new URL("/api/auth/token-verify", process.env.BASE_URL),
       {
         method: "POST",
         headers: {
@@ -71,19 +71,19 @@ export async function middleware(request) {
           if (accountType === "athlete" || accountType === "promoter") {
             if (pathname === "/profile") {
               return NextResponse.redirect(
-                new URL(`/profile/${accountType}`, request.url)
+                new URL(`/profile/${accountType}`, baseUrl)
               );
             }
 
             if (pathname === "/profile/athlete" && accountType === "promoter") {
               return NextResponse.redirect(
-                new URL("/profile/promoter", request.url)
+                new URL("/profile/promoter", baseUrl)
               );
             }
 
             if (pathname === "/profile/promoter" && accountType === "athlete") {
               return NextResponse.redirect(
-                new URL("/profile/athlete", request.url)
+                new URL("/profile/athlete", baseUrl)
               );
             }
           }
@@ -91,14 +91,14 @@ export async function middleware(request) {
       }
 
       if (isAuthRoute) {
-        return NextResponse.redirect(new URL("/", request.url));
+        return NextResponse.redirect(new URL("/", process.env.BASE_URL));
       }
       return NextResponse.next();
     } else {
       console.error("Token verification failed:", verifyResult.error);
 
       if (isProtectedRoute) {
-        const response = NextResponse.redirect(new URL("/login", request.url));
+        const response = NextResponse.redirect(new URL("/login", process.env.BASE_URL));
         response.cookies.delete("auth_token");
         return response;
       }
@@ -117,7 +117,7 @@ export async function middleware(request) {
     console.error("Middleware error:", error);
 
     if (isProtectedRoute) {
-      const response = NextResponse.redirect(new URL("/login", request.url));
+      const response = NextResponse.redirect(new URL("/login", process.env.BASE_URL));
       response.cookies.delete("auth_token");
       return response;
     }
