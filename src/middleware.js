@@ -12,7 +12,7 @@ const protectedRoutes = [
 const authRoutes = ["/login", "/register", "/forgot-password"];
 
 export async function middleware(request) {
-  const baseUrl = new URL(request.url).origin;
+  const baseUrl = process.env.BASE_URL;
 
   const { pathname } = request.nextUrl;
 
