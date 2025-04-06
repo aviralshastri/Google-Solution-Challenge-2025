@@ -1,14 +1,6 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
-import {
-  User,
-  Search,
-  MessageSquare,
-  Sun,
-  Moon,
-  LogOut,
-  BarChart2,
-} from "lucide-react";
+import { User, Search, MessageSquare, Sun, Moon, LogOut } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useTheme } from "next-themes";
@@ -75,6 +67,7 @@ export default function TopBar() {
 
   const handleLogout = () => {
     Cookies.remove("auth_token");
+    Cookies.remove("userData");
     logout();
     router.push("/login");
   };

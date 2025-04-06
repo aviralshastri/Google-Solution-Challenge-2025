@@ -59,7 +59,7 @@ export default function AthleteEditProfile() {
       try {
         setIsLoading(true)
         // Get user data from cookies
-        const cookieData = Cookies.get("user_data")
+        const cookieData = Cookies.get("userData")
         console.log("Raw cookie data:", cookieData)
 
         let userData = {}
@@ -296,12 +296,12 @@ export default function AthleteEditProfile() {
       await updateDoc(userDocRef, changedFields)
 
       // Update cookie data
-      const cookieData = Cookies.get("user_data")
+      const cookieData = Cookies.get("userData")
       const userData = cookieData ? JSON.parse(cookieData) : {}
 
       // Update only changed fields in cookie data
       const updatedUserData = { ...userData, ...changedFields }
-      Cookies.set("user_data", JSON.stringify(updatedUserData))
+      Cookies.set("userData", JSON.stringify(updatedUserData))
 
       console.log("Updated user data in cookies:", updatedUserData)
 
