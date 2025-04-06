@@ -117,14 +117,15 @@ export default function Injury() {
       if (!recoveryResult.success) {
         throw new Error(recoveryResult.error || "Failed to get prediction");
       }
-
+      console.log(recoveryResult);
       const predictionValue =
-        recoveryResult.prediction.value || recoveryResult.prediction;
+        recoveryResult.predictedDays || recoveryResult.prediction;
       setPrediction({
-        days: Math.round(Number(predictionValue)),
+        days: predictionValue,
         raw: predictionValue,
         confidence: recoveryResult.prediction.confidenceScore || 0.85,
       });
+
       setPredictionLoading(false);
 
       const recommendationResponse = await fetch("/api/ai/injury-do-dont", {
