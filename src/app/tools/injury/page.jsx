@@ -20,7 +20,14 @@ import {
 } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { Progress } from "@/components/ui/progress";
-import { AlertCircle, Activity, Clock, TrendingUp, CheckCircle, Loader2 } from "lucide-react";
+import {
+  AlertCircle,
+  Activity,
+  Clock,
+  TrendingUp,
+  CheckCircle,
+  Loader2,
+} from "lucide-react";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import ReactMarkdown from "react-markdown";
 
@@ -46,6 +53,7 @@ export default function Injury() {
     Nutrition_Score: "8",
     Hydration_Level: "1.6",
     Physiotherapy_Sessions: "1",
+    Dataset_Split: "train",
   });
 
   // Refs for scrolling
@@ -80,7 +88,7 @@ export default function Injury() {
     setLoading(true);
     setPredictionLoading(true);
     setRecommendationLoading(true);
-    
+
     // Reset previous results when starting a new request
     setPrediction(null);
     setRecommendation("");
@@ -119,7 +127,6 @@ export default function Injury() {
       });
       setPredictionLoading(false);
 
-      // Second API call for dos and don'ts recommendations
       const recommendationResponse = await fetch("/api/ai/injury-do-dont", {
         method: "POST",
         headers: {
@@ -131,7 +138,9 @@ export default function Injury() {
       const recommendationData = await recommendationResponse.json();
 
       if (!recommendationResponse.ok) {
-        throw new Error(recommendationData.error || "Failed to get recommendations");
+        throw new Error(
+          recommendationData.error || "Failed to get recommendations"
+        );
       }
 
       setRecommendation(recommendationData.result);
@@ -374,61 +383,67 @@ export default function Injury() {
             {predictionLoading ? (
               <div className="w-full flex flex-col items-center justify-center py-8">
                 <Loader2 className="h-8 w-8 animate-spin text-primary mb-2" />
-                <p className="text-sm text-muted-foreground">Calculating recovery time...</p>
+                <p className="text-sm text-muted-foreground">
+                  Calculating recovery time...
+                </p>
               </div>
-            ) : prediction && (
-              <>
-                <div className="w-full space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-sm font-medium">Predicted Recovery</h3>
-                    <span
-                      className={`text-xl font-bold ${getSeverityColor(
-                        prediction.days
-                      )}`}
-                    >
-                      {prediction.days} days
-                    </span>
+            ) : (
+              prediction && (
+                <>
+                  <div className="w-full space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-sm font-medium">
+                        Predicted Recovery
+                      </h3>
+                      <span
+                        className={`text-xl font-bold ${getSeverityColor(
+                          prediction.days
+                        )}`}
+                      >
+                        {prediction.days} days
+                      </span>
+                    </div>
+                    <Progress
+                      value={getProgressValue(prediction.days)}
+                      className="h-2"
+                    />
                   </div>
-                  <Progress
-                    value={getProgressValue(prediction.days)}
-                    className="h-2"
-                  />
-                </div>
 
-                <div className="grid grid-cols-2 gap-4 w-full">
-                  <Card className="border shadow-sm">
-                    <CardContent className="p-4 space-y-1">
-                      <div className="flex items-center text-sm text-muted-foreground">
-                        <Clock className="h-4 w-4 mr-1" />
-                        <span>Recovery Range</span>
-                      </div>
-                      <p className="text-lg font-semibold">
-                        {getRecoveryRange().min}-{getRecoveryRange().max} days
-                      </p>
-                    </CardContent>
-                  </Card>
+                  <div className="grid grid-cols-2 gap-4 w-full">
+                    <Card className="border shadow-sm">
+                      <CardContent className="p-4 space-y-1">
+                        <div className="flex items-center text-sm text-muted-foreground">
+                          <Clock className="h-4 w-4 mr-1" />
+                          <span>Recovery Range</span>
+                        </div>
+                        <p className="text-lg font-semibold">
+                          {getRecoveryRange().min}-{getRecoveryRange().max} days
+                        </p>
+                      </CardContent>
+                    </Card>
 
-                  <Card className="border shadow-sm">
-                    <CardContent className="p-4 space-y-1">
-                      <div className="flex items-center text-sm text-muted-foreground">
-                        <TrendingUp className="h-4 w-4 mr-1" />
-                        <span>Confidence</span>
-                      </div>
-                      <p className="text-lg font-semibold">
-                        {Math.round(prediction.confidence * 100)}%
-                      </p>
-                    </CardContent>
-                  </Card>
-                </div>
+                    <Card className="border shadow-sm">
+                      <CardContent className="p-4 space-y-1">
+                        <div className="flex items-center text-sm text-muted-foreground">
+                          <TrendingUp className="h-4 w-4 mr-1" />
+                          <span>Confidence</span>
+                        </div>
+                        <p className="text-lg font-semibold">
+                          {Math.round(prediction.confidence * 100)}%
+                        </p>
+                      </CardContent>
+                    </Card>
+                  </div>
 
-                <div className="text-sm text-muted-foreground flex items-start gap-2 pt-2">
-                  <AlertCircle className="h-4 w-4 mt-0.5" />
-                  <p>
-                    Recovery time may vary based on individual factors. Regular
-                    follow-ups with medical staff recommended.
-                  </p>
-                </div>
-              </>
+                  <div className="text-sm text-muted-foreground flex items-start gap-2 pt-2">
+                    <AlertCircle className="h-4 w-4 mt-0.5" />
+                    <p>
+                      Recovery time may vary based on individual factors.
+                      Regular follow-ups with medical staff recommended.
+                    </p>
+                  </div>
+                </>
+              )
             )}
 
             {/* Recommendations Section with loading state */}
