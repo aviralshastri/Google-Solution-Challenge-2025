@@ -1,6 +1,10 @@
 "use client";
 
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
+import Cookies from "js-cookie";
+import { doc, getDoc } from "firebase/firestore";
+import { getPayloadFromToken } from "@/lib/getTokenPayload";
+import { db } from "@/lib/firebase";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -11,25 +15,78 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Mail, MapPin, Phone, User, Edit } from "lucide-react";
 import Link from "next/link";
 
-const athleteData = {
-  name: "Alex Johnson",
-  age: 28,
-  weight: "175 lbs",
-  gender: "Male",
-  city: "Boulder",
-  state: "Colorado",
-  phone: "(555) 123-4567",
-  sports: ["Rock Climbing", "Trail Running", "Mountain Biking", "Swimming"],
-  email: "alex.johnson@example.com",
-  bio: "Professional athlete with 10+ years of experience in competitive rock climbing and trail running. Multiple-time national champion and passionate about mentoring the next generation of athletes.",
-};
-
 export default function AthleteProfile() {
-  // Function to handle the edit profile click
-  const handleEditClick = () => {
-    // Store the athlete data in localStorage
-    localStorage.setItem("athleteData", JSON.stringify(athleteData));
-  };
+  const [athleteData, setAthleteData] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchUserData = async () => {
+      try {
+        const cookieData = Cookies.get("userData");
+        
+        if (cookieData) {
+          const userData = JSON.parse(cookieData);
+          
+          const sports = userData.selectedSports?.map((s) => s.label) || [];
+          const formatted = {
+            name: userData.fullName,
+            age: userData.age,
+            weight: `${userData.weight} kg`,
+            gender: userData.gender,
+            city: userData.city,
+            state: userData.state,
+            phone: userData.phone,
+            email: userData.email,
+            sports,
+            bio: userData.bio || `User from ${userData.cityName}, passionate about ${sports.join(", ")}`,
+          };
+          
+          setAthleteData(formatted);
+          setLoading(false);
+        } else {
+          const data = await getPayloadFromToken();
+          const uid = data.uid;
+
+          const docRef = doc(db, "accounts", uid);
+          const docSnap = await getDoc(docRef);
+
+          if (docSnap.exists()) {
+            const userData = docSnap.data();
+            const sports = userData.selectedSports?.map((s) => s.label) || [];
+            
+            const formatted = {
+              name: userData.fullName,
+              age: userData.age,
+              weight: `${userData.weight} kg`,
+              gender: userData.gender,
+              city: userData.city,
+              state: userData.state,
+              phone: userData.phone,
+              email: userData.email,
+              sports,
+              bio: userData.bio || `User from ${userData.cityName}, passionate about ${sports.join(", ")}`,
+            };
+            Cookies.set("userData", JSON.stringify(userData), {
+              expires: 7,
+              secure: true,
+              sameSite: "Lax",
+            });
+
+            setAthleteData(formatted);
+          }
+          setLoading(false);
+        }
+      } catch (err) {
+        console.error("Error fetching user data:", err);
+        setLoading(false);
+      }
+    };
+
+    fetchUserData();
+  }, []);
+
+  if (loading) return <p className="text-center mt-10">Loading...</p>;
+  if (!athleteData) return <p className="text-center mt-10">No user data found. Please log in again.</p>;
 
   return (
     <div className="flex justify-center py-20">
@@ -37,14 +94,11 @@ export default function AthleteProfile() {
         <Card className="overflow-hidden">
           <div className="h-48 w-full bg-gradient-to-r from-primary/20 to-primary/40 relative">
             <div className="absolute top-1 right-1">
-              <Button
-                asChild
-                variant="secondary"
-                size="sm"
-                className="bg-white/90 hover:bg-white shadow-md transition-all duration-200 border border-solid border-gray-200"
-                onClick={handleEditClick}
-              >
-                <Link href="/edit-profile" className="flex items-center gap-2 px-3 py-2">
+              <Button asChild variant="secondary" size="sm">
+                <Link
+                  href="/edit-profile"
+                  className="flex items-center gap-2 px-3 py-2"
+                >
                   <Edit className="h-4 w-4" />
                   <span>Edit Profile</span>
                 </Link>
@@ -66,7 +120,6 @@ export default function AthleteProfile() {
             </div>
           </div>
 
-          {/* Increased padding at top to accommodate avatar */}
           <CardHeader className="pt-20 pb-4">
             <div className="space-y-1.5">
               <CardTitle className="text-2xl md:text-3xl">

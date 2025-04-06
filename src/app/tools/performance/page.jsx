@@ -290,13 +290,13 @@ export default function RunningTracker() {
                     >
                       <CartesianGrid
                         strokeDasharray="3 3"
-                        stroke="hsl(var(--muted))"
+                        stroke="#ffffff"
                         opacity={0.3}
                       />
 
                       <XAxis
                         dataKey="day"
-                        tick={{ fontSize: 14, fill: "hsl(var(--foreground))" }}
+                        tick={{ fontSize: 14, fill: "#ffffff" }}
                         tickLine={{ stroke: "hsl(var(--muted))" }}
                         axisLine={{ stroke: "hsl(var(--muted))" }}
                         label={{
@@ -304,12 +304,12 @@ export default function RunningTracker() {
                           position: "insideBottom",
                           offset: -5,
                           fontSize: 14,
-                          fill: "hsl(var(--foreground))",
+                          fill: "#ffffff",
                         }}
                       />
 
                       <YAxis
-                        tick={{ fontSize: 14, fill: "hsl(var(--foreground))" }}
+                        tick={{ fontSize: 14, fill: "#ffffff" }}
                         tickLine={{ stroke: "hsl(var(--muted))" }}
                         axisLine={{ stroke: "hsl(var(--muted))" }}
                         label={{
@@ -323,7 +323,7 @@ export default function RunningTracker() {
                           position: "insideLeft",
                           offset: 10,
                           fontSize: 14,
-                          fill: "hsl(var(--foreground))",
+                          fill: "#ffffff",
                         }}
                         domain={
                           chartMetric === "pace"
@@ -339,7 +339,7 @@ export default function RunningTracker() {
                       <Line
                         type="monotone"
                         dataKey={chartMetric}
-                        stroke="hsl(var(--primary))"
+                        stroke="#ffffff"
                         strokeWidth={2}
                         dot={{
                           stroke: "hsl(var(--primary))",

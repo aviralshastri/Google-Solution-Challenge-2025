@@ -12,6 +12,8 @@ const protectedRoutes = [
 const authRoutes = ["/login", "/register", "/forgot-password"];
 
 export async function middleware(request) {
+  const baseUrl = new URL(request.url).origin;
+
   const { pathname } = request.nextUrl;
 
   const isProtectedRoute = protectedRoutes.some(
@@ -34,13 +36,13 @@ export async function middleware(request) {
       }
 
       if (isProtectedRoute) {
-        return NextResponse.redirect(new URL("/login", request.url));
+        return NextResponse.redirect(new URL("/login", baseUrl));
       }
 
       return NextResponse.next();
     }
     const verifyResponse = await fetch(
-      new URL("/api/auth/token-verify", process.env.BASE_URL),
+      new URL("/api/auth/token-verify", baseUrl),
       {
         method: "POST",
         headers: {
@@ -54,8 +56,6 @@ export async function middleware(request) {
 
     if (verifyResult.valid) {
       if (pathname === "/profile" || pathname.startsWith("/profile/")) {
-        const baseUrl =
-          process.env.BASE_URL || new URL(request.url).origin;
         const tokenDataResponse = await fetch(
           `${baseUrl}/api/auth/token-get-data?token=${token}`,
           {
@@ -91,14 +91,14 @@ export async function middleware(request) {
       }
 
       if (isAuthRoute) {
-        return NextResponse.redirect(new URL("/", process.env.BASE_URL));
+        return NextResponse.redirect(new URL("/", baseUrl));
       }
       return NextResponse.next();
     } else {
       console.error("Token verification failed:", verifyResult.error);
 
       if (isProtectedRoute) {
-        const response = NextResponse.redirect(new URL("/login", process.env.BASE_URL));
+        const response = NextResponse.redirect(new URL("/login", baseUrl));
         response.cookies.delete("auth_token");
         return response;
       }
@@ -117,7 +117,7 @@ export async function middleware(request) {
     console.error("Middleware error:", error);
 
     if (isProtectedRoute) {
-      const response = NextResponse.redirect(new URL("/login", process.env.BASE_URL));
+      const response = NextResponse.redirect(new URL("/login", baseUrl));
       response.cookies.delete("auth_token");
       return response;
     }

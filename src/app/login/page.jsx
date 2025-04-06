@@ -28,6 +28,7 @@ import { auth, db } from "@/lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2, Eye, EyeOff } from "lucide-react";
+import { useAuth } from "@/components/custom/auth-context";
 
 const ERROR_MESSAGES = {
   "auth/invalid-email": "Invalid credentials.",
@@ -70,6 +71,7 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const router = useRouter();
   const googleProvider = new GoogleAuthProvider();
+  const { login } = useAuth();
 
   const handleInputChange = (e) => {
     const { id, value } = e.target;
@@ -114,7 +116,7 @@ export default function LoginPage() {
       if (!userData) {
         throw new Error("User data not found in database");
       }
-      
+
       const response = await fetch("/api/auth/token-generate", {
         method: "POST",
         headers: {
@@ -178,10 +180,9 @@ export default function LoginPage() {
         return;
       }
 
-      // Get JWT token from the server API with additional user data
       const token = await getJwtToken(userCredential.user);
       saveTokenToCookie(token);
-
+      login();
       router.push("/");
     } catch (error) {
       handleAuthError(error);
@@ -202,7 +203,6 @@ export default function LoginPage() {
       await setPersistence(auth, browserSessionPersistence);
       const result = await signInWithPopup(auth, googleProvider);
 
-      // Get JWT token from the server API with additional user data
       const token = await getJwtToken(result.user);
       saveTokenToCookie(token);
 

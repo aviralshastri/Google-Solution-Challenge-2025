@@ -15,8 +15,6 @@ import {
   addDoc,
   serverTimestamp,
   doc,
-  updateDoc,
-  arrayUnion,
   getDoc,
 } from "firebase/firestore";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
@@ -51,8 +49,8 @@ export default function CreatePost() {
   const fileInputRef = useRef(null);
   const [selectedTags, setSelectedTags] = useState([]);
   const [userId, setUserId] = useState(null);
-  const [userName, setUserName] = useState("Name Here");
-  const [userHandle, setUserHandle] = useState("@username");
+  const [userName, setUserName] = useState("");
+  const [userHandle, setUserHandle] = useState("");
   const [userAvatar, setUserAvatar] = useState("/placeholder.svg?height=40&width=40");
   const [alert, setAlert] = useState({
     show: false,
@@ -67,7 +65,8 @@ export default function CreatePost() {
         const data = await getPayloadFromToken();
         if (data) {
           setUserId(data.uid);
-          
+          setUserName(data.fullName)
+          setUserHandle("@"+data.email)
           try {
             const userDocRef = doc(db, "accounts", data.uid);
             const userDoc = await getDoc(userDocRef);

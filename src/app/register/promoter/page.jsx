@@ -1,22 +1,42 @@
-"use client"
+"use client";
 
-import { useState, useEffect, useMemo, useCallback } from "react"
-import Link from "next/link"
-import { useRouter } from "next/navigation"
-import { Eye, EyeOff } from "lucide-react"
+import { useState, useEffect, useMemo, useCallback } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { Eye, EyeOff } from "lucide-react";
 
-import MultipleSelector from "@/components/ui/multiple-selector"
+import MultipleSelector from "@/components/ui/multiple-selector";
 
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Separator } from "@/components/ui/separator"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Slider } from "@/components/ui/slider"
-import { Progress } from "@/components/ui/progress"
-import { auth,db } from "@/lib/firebase"
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Slider } from "@/components/ui/slider";
+import { Progress } from "@/components/ui/progress";
+import { auth, db } from "@/lib/firebase";
+import {
+  createUserWithEmailAndPassword,
+  GoogleAuthProvider,
+  signInWithPopup,
+  sendEmailVerification,
+} from "firebase/auth";
+import { doc, setDoc } from "firebase/firestore";
 
 const OPTIONS = [
   { label: "Track & Field", value: "track_field" },
@@ -29,10 +49,10 @@ const OPTIONS = [
   { label: "Weightlifting", value: "weightlifting" },
   { label: "Rowing", value: "rowing" },
   { label: "CrossFit", value: "crossfit" },
-]
+];
 
 export default function AthleteRegister() {
-  const router = useRouter()
+  const router = useRouter();
   const [formData, setFormData] = useState({
     fullName: "",
     email: "",
@@ -45,104 +65,174 @@ export default function AthleteRegister() {
     password: "",
     confirmPassword: "",
     selectedSports: [],
-  })
-  const [locationData, setLocationData] = useState({ states: [] })
-  const [cities, setCities] = useState([])
-  const [showPassword, setShowPassword] = useState(false)
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
-  const [passwordStrength, setPasswordStrength] = useState(0)
-  const [passwordErrors, setPasswordErrors] = useState([])
-  const [passwordsMatch, setPasswordsMatch] = useState(true)
+    gender: "",
+    profile: "",
+    banner: "",
+    bio: "",
+  });
+  
+  const [states, setStates] = useState([]);
+  const [cities, setCities] = useState([]);
+  const [isLoadingStates, setIsLoadingStates] = useState(false);
+  const [isLoadingCities, setIsLoadingCities] = useState(false);
+  const [locationError, setLocationError] = useState(null);
+  const [stateMap, setStateMap] = useState({});
+  const [cityMap, setCityMap] = useState({});
+  
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [passwordStrength, setPasswordStrength] = useState(0);
+  const [passwordErrors, setPasswordErrors] = useState([]);
+  const [passwordsMatch, setPasswordsMatch] = useState(true);
   const [formErrors, setFormErrors] = useState({
     phone: "",
     selectedSports: "",
-  })
+  });
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    const fetchStates = async () => {
+    async function fetchStates() {
+      setIsLoadingStates(true);
+      setLocationError(null);
+      
       try {
-        const response = await fetch("/api/other/get-state")
+        const headers = new Headers();
+        headers.append("X-CSCAPI-KEY", process.env.NEXT_PUBLIC_CSCAPI_KEY);
+
+        const requestOptions = {
+          method: "GET",
+          headers: headers,
+          redirect: "follow",
+        };
+
+        const response = await fetch(
+          "https://api.countrystatecity.in/v1/countries/IN/states",
+          requestOptions
+        );
+
         if (!response.ok) {
-          throw new Error("Failed to fetch states")
+          throw new Error(`Failed to fetch states: ${response.status}`);
         }
-        const states = await response.json()
-        setLocationData((prev) => ({ ...prev, states }))
+
+        const result = await response.json();
+        // Sort states alphabetically by name
+        const sortedStates = [...result].sort((a, b) => a.name.localeCompare(b.name));
+        setStates(sortedStates);
+        
+        // Create state lookup map
+        const stateNameMap = {};
+        sortedStates.forEach(state => {
+          stateNameMap[state.iso2] = state.name;
+        });
+        setStateMap(stateNameMap);
       } catch (error) {
-        console.error("Error loading states:", error)
+        console.error("Error fetching states:", error);
+        setLocationError("Failed to load states. Please try again later.");
+      } finally {
+        setIsLoadingStates(false);
       }
     }
 
-    fetchStates()
-  }, [])
+    fetchStates();
+  }, []);
 
   useEffect(() => {
-    const fetchCities = async () => {
-      if (formData.state) {
-        try {
-          const response = await fetch(`/api/other/get-city?state=${formData.state}`)
-          if (!response.ok) {
-            throw new Error("Failed to fetch cities")
-          }
-          const cities = await response.json()
-          setCities(cities)
-        } catch (error) {
-          console.error("Error loading cities:", error)
-          setCities([])
+    async function fetchCities(stateCode) {
+      if (!stateCode) {
+        setCities([]);
+        setCityMap({});
+        return;
+      }
+
+      setIsLoadingCities(true);
+      setLocationError(null);
+
+      try {
+        const headers = new Headers();
+        headers.append("X-CSCAPI-KEY", process.env.NEXT_PUBLIC_CSCAPI_KEY);
+
+        const requestOptions = {
+          method: "GET",
+          headers: headers,
+          redirect: "follow",
+        };
+
+        const response = await fetch(
+          `https://api.countrystatecity.in/v1/countries/IN/states/${stateCode}/cities`,
+          requestOptions
+        );
+
+        if (!response.ok) {
+          throw new Error(`Failed to fetch cities: ${response.status}`);
         }
-      } else {
-        setCities([])
+
+        const result = await response.json();
+        // Sort cities alphabetically by name
+        const sortedCities = [...result].sort((a, b) => a.name.localeCompare(b.name));
+        setCities(sortedCities);
+        
+        // Create city lookup map
+        const cityNameMap = {};
+        sortedCities.forEach(city => {
+          cityNameMap[city.id] = city.name;
+        });
+        setCityMap(cityNameMap);
+      } catch (error) {
+        console.error("Error fetching cities:", error);
+        setLocationError("Failed to load cities. Please try again later.");
+      } finally {
+        setIsLoadingCities(false);
       }
     }
 
-    fetchCities()
-  }, [formData.state])
+    fetchCities(formData.state);
+  }, [formData.state]);
 
   useEffect(() => {
     if (formData.confirmPassword) {
-      setPasswordsMatch(formData.password === formData.confirmPassword)
+      setPasswordsMatch(formData.password === formData.confirmPassword);
     } else {
-      setPasswordsMatch(true)
+      setPasswordsMatch(true);
     }
-  }, [formData.password, formData.confirmPassword])
+  }, [formData.password, formData.confirmPassword]);
 
   const checkPasswordStrength = useCallback((password) => {
-    const errors = []
-    let strength = 0
+    const errors = [];
+    let strength = 0;
 
     if (password.length > 0) {
       if (password.length < 8) {
-        errors.push("Password must be at least 8 characters long")
+        errors.push("Password must be at least 8 characters long");
       } else {
-        strength += 25
+        strength += 25;
       }
       if (!/[A-Z]/.test(password)) {
-        errors.push("Include at least one uppercase letter")
+        errors.push("Include at least one uppercase letter");
       } else {
-        strength += 25
+        strength += 25;
       }
 
       if (!/\d/.test(password)) {
-        errors.push("Include at least one number")
+        errors.push("Include at least one number");
       } else {
-        strength += 25
+        strength += 25;
       }
 
-      // Check for special characters
       if (!/[!@#$%^&*(),.?":{}|<>]/.test(password)) {
-        errors.push("Include at least one special character")
+        errors.push("Include at least one special character");
       } else {
-        strength += 25
+        strength += 25;
       }
     }
 
-    return { strength, errors }
-  }, [])
+    return { strength, errors };
+  }, []);
 
   useEffect(() => {
-    const { strength, errors } = checkPasswordStrength(formData.password)
-    setPasswordStrength(strength)
-    setPasswordErrors(errors)
-  }, [formData.password, checkPasswordStrength])
+    const { strength, errors } = checkPasswordStrength(formData.password);
+    setPasswordStrength(strength);
+    setPasswordErrors(errors);
+  }, [formData.password, checkPasswordStrength]);
 
   // Validate phone number format
   useEffect(() => {
@@ -151,132 +241,233 @@ export default function AthleteRegister() {
         setFormErrors((prev) => ({
           ...prev,
           phone: "Phone number must be exactly 10 digits",
-        }))
+        }));
       } else {
         setFormErrors((prev) => ({
           ...prev,
           phone: "",
-        }))
+        }));
       }
     } else {
       setFormErrors((prev) => ({
         ...prev,
         phone: "",
-      }))
+      }));
     }
-  }, [formData.phone])
+  }, [formData.phone]);
 
-  // Validate selected sports
   useEffect(() => {
     if (formData.selectedSports.length === 0) {
       setFormErrors((prev) => ({
         ...prev,
         selectedSports: "Please select at least one sport",
-      }))
+      }));
     } else {
       setFormErrors((prev) => ({
         ...prev,
         selectedSports: "",
-      }))
+      }));
     }
-  }, [formData.selectedSports])
+  }, [formData.selectedSports]);
 
   const handleChange = useCallback((e) => {
-    const { name, value } = e.target
+    const { name, value } = e.target;
     if (name === "phone") {
-      const numericValue = value.replace(/\D/g, "")
-      // Limit to 10 digits
+      const numericValue = value.replace(/\D/g, "");
       if (numericValue.length <= 10) {
-        setFormData((prev) => ({ ...prev, [name]: numericValue }))
+        setFormData((prev) => ({ ...prev, [name]: numericValue }));
       }
-      return
+      return;
     }
 
-    setFormData((prev) => ({ ...prev, [name]: value }))
-  }, [])
+    setFormData((prev) => ({ ...prev, [name]: value }));
+  }, []);
 
   const handleSelectChange = useCallback((name, value) => {
     setFormData((prev) => {
       if (name === "state") {
-        return { ...prev, [name]: value, city: "" }
+        return { ...prev, [name]: value, city: "" };
       }
-      return { ...prev, [name]: value }
-    })
-  }, [])
+      return { ...prev, [name]: value };
+    });
+  }, []);
 
   const handleSliderChange = useCallback((value) => {
-    setFormData((prev) => ({ ...prev, age: value[0] }))
-  }, [])
+    setFormData((prev) => ({ ...prev, age: value[0] }));
+  }, []);
 
   const togglePasswordVisibility = useCallback(() => {
-    setShowPassword((prev) => !prev)
-  }, [])
+    setShowPassword((prev) => !prev);
+  }, []);
 
   const toggleConfirmPasswordVisibility = useCallback(() => {
-    setShowConfirmPassword((prev) => !prev)
-  }, [])
+    setShowConfirmPassword((prev) => !prev);
+  }, []);
 
   const handleSportsChange = useCallback((selectedOptions) => {
     setFormData((prev) => ({
       ...prev,
       selectedSports: selectedOptions,
-    }))
-  }, [])
+    }));
+  }, []);
 
   const getPasswordStrengthLabel = useCallback(() => {
-    if (passwordStrength === 0) return ""
-    if (passwordStrength <= 25) return "Weak"
-    if (passwordStrength <= 50) return "Fair"
-    if (passwordStrength <= 75) return "Good"
-    return "Strong"
-  }, [passwordStrength])
+    if (passwordStrength === 0) return "";
+    if (passwordStrength <= 25) return "Weak";
+    if (passwordStrength <= 50) return "Fair";
+    if (passwordStrength <= 75) return "Good";
+    return "Strong";
+  }, [passwordStrength]);
 
   const getPasswordStrengthColor = useCallback(() => {
-    if (passwordStrength <= 25) return "bg-red-500"
-    if (passwordStrength <= 50) return "bg-yellow-500"
-    if (passwordStrength <= 75) return "bg-blue-500"
-    return "bg-green-500"
-  }, [passwordStrength])
+    if (passwordStrength <= 25) return "bg-red-500";
+    if (passwordStrength <= 50) return "bg-yellow-500";
+    if (passwordStrength <= 75) return "bg-blue-500";
+    return "bg-green-500";
+  }, [passwordStrength]);
 
   const isFormValid = useMemo(() => {
     return (
-      passwordsMatch && passwordStrength >= 50 && formData.selectedSports.length > 0 && formData.phone.length === 10
-    )
-  }, [passwordsMatch, passwordStrength, formData.selectedSports, formData.phone])
+      passwordsMatch &&
+      passwordStrength >= 50 &&
+      formData.selectedSports.length > 0 &&
+      formData.phone.length === 10 &&
+      formData.gender !== ""
+    );
+  }, [
+    passwordsMatch,
+    passwordStrength,
+    formData.selectedSports,
+    formData.phone,
+    formData.gender,
+  ]);
 
-  const handleSubmit = useCallback(
-    (e) => {
-      e.preventDefault()
+  // Store user data in Firestore
+  const storeUserData = async (userId, userData) => {
+    try {
+      await setDoc(doc(db, "accounts", userId), userData);
+      return true;
+    } catch (error) {
+      console.error("Error storing user data:", error);
+      alert(`Error storing user data: ${error.message}`);
+      return false;
+    }
+  };
 
-      // Additional validation before submission
-      const errors = {}
+  // Handle Google Sign In
+  const handleGoogleSignIn = async () => {
+    try {
+      setLoading(true);
+      const provider = new GoogleAuthProvider();
+      const result = await signInWithPopup(auth, provider);
+      const user = result.user;
 
-      if (formData.phone.length !== 10) {
-        errors.phone = "Phone number must be exactly 10 digits"
+      const userData = {
+        fullName: user.displayName || "",
+        email: user.email || "",
+        phone: "",
+        age: 25,
+        weight: 70,
+        accountType: "athlete",
+        state: "",
+        city: "",
+        selectedSports: [],
+        gender: "", // Add gender field
+        createdAt: new Date(),
+        photoURL: user.photoURL || "",
+      };
+
+      const stored = await storeUserData(user.uid, userData);
+
+      if (stored) {
+        alert("Registration successful with Google!");
+        router.push("/dashboard");
       }
+    } catch (error) {
+      console.error("Error signing in with Google:", error);
+      alert(`Error signing in with Google: ${error.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-      if (formData.selectedSports.length === 0) {
-        errors.selectedSports = "Please select at least one sport"
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+
+    const errors = {};
+
+    if (formData.phone.length !== 10) {
+      errors.phone = "Phone number must be exactly 10 digits";
+    }
+
+    if (formData.selectedSports.length === 0) {
+      errors.selectedSports = "Please select at least one sport";
+    }
+
+    setFormErrors((prev) => ({ ...prev, ...errors }));
+
+    if (Object.keys(errors).length > 0 || !isFormValid) {
+      return;
+    }
+
+    try {
+      setLoading(true);
+
+      // Create user with email and password
+      const userCredential = await createUserWithEmailAndPassword(
+        auth,
+        formData.email,
+        formData.password
+      );
+
+      const user = userCredential.user;
+
+      // Prepare user data for Firestore (excluding password and confirmPassword)
+      const userData = {
+        fullName: formData.fullName,
+        email: formData.email,
+        phone: formData.phone,
+        age: formData.age,
+        weight: formData.weight,
+        accountType: formData.accountType,
+        state: formData.state,
+        city: formData.city,
+        selectedSports: formData.selectedSports,
+        gender: formData.gender, // Add gender field
+        createdAt: new Date(),
+        emailVerified: false,
+      };
+
+      // Store in Firestore using Auth UID as document ID
+      const stored = await storeUserData(user.uid, userData);
+
+      if (stored) {
+        // Send verification email
+        await sendEmailVerification(user);
+
+        alert(
+          "Registration successful! Please check your email to verify your account."
+        );
+        router.push("/login"); // Redirect to login page
       }
-
-      setFormErrors((prev) => ({ ...prev, ...errors }))
-
-      if (Object.keys(errors).length > 0 || !isFormValid) {
-        return
-      }
-
-      console.log("Registration attempt with:", formData)
-      // Here you would typically send the data to your backend
-    },
-    [formData, isFormValid],
-  )
+    } catch (error) {
+      console.error("Error registering with email/password:", error);
+      alert(`Registration failed: ${error.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="flex min-h-screen items-center justify-center p-4 px-4 py-20">
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
-          <CardTitle className="text-2xl font-bold">Create an account</CardTitle>
-          <CardDescription>Enter your information to create an account</CardDescription>
+          <CardTitle className="text-2xl font-bold">
+            Create an account
+          </CardTitle>
+          <CardDescription>
+            Enter your information to create an account
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -319,7 +510,9 @@ export default function AthleteRegister() {
                 maxLength={10}
                 required
               />
-              {formErrors.phone && <p className="mt-1 text-xs text-red-500">{formErrors.phone}</p>}
+              {formErrors.phone && (
+                <p className="mt-1 text-xs text-red-500">{formErrors.phone}</p>
+              )}
             </div>
 
             <div className="space-y-3">
@@ -350,39 +543,55 @@ export default function AthleteRegister() {
             </div>
 
             <div className="space-y-3">
-              <Label>Account Type</Label>
+              <Label htmlFor="gender">Gender</Label>
               <RadioGroup
-                defaultValue={formData.accountType}
-                onValueChange={(value) => handleSelectChange("accountType", value)}
+                id="gender"
+                name="gender"
+                value={formData.gender}
+                onValueChange={(value) =>
+                  setFormData((prev) => ({ ...prev, gender: value }))
+                }
                 className="flex space-x-4"
+                required
               >
                 <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="athlete" id="athlete" />
-                  <Label htmlFor="athlete" className="cursor-pointer">
-                    Athlete
-                  </Label>
+                  <RadioGroupItem value="male" id="male" />
+                  <Label htmlFor="male">Male</Label>
                 </div>
                 <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="business" id="business" />
-                  <Label htmlFor="business" className="cursor-pointer">
-                    Business
-                  </Label>
+                  <RadioGroupItem value="female" id="female" />
+                  <Label htmlFor="female">Female</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="other" id="other" />
+                  <Label htmlFor="other">Other</Label>
                 </div>
               </RadioGroup>
             </div>
 
             <div className="space-y-3">
               <Label>Address</Label>
+              {locationError && (
+                <div className="mt-1 text-xs text-red-500">{locationError}</div>
+              )}
               <div className="grid grid-cols-2 gap-4">
                 <div className="w-full">
-                  <Select onValueChange={(value) => handleSelectChange("state", value)} value={formData.state}>
+                  <Select
+                    onValueChange={(value) =>
+                      handleSelectChange("state", value)
+                    }
+                    value={formData.state}
+                    disabled={isLoadingStates}
+                  >
                     <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Select State" />
+                      <SelectValue placeholder={isLoadingStates ? "Loading states..." : "Select State"}>
+                        {formData.state && stateMap[formData.state]}
+                      </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
-                      {locationData.states.map((state) => (
-                        <SelectItem key={state} value={state}>
-                          {state}
+                      {states.map((state) => (
+                        <SelectItem key={state.iso2} value={state.iso2}>
+                          {state.name}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -392,15 +601,25 @@ export default function AthleteRegister() {
                   <Select
                     onValueChange={(value) => handleSelectChange("city", value)}
                     value={formData.city}
-                    disabled={!formData.state}
+                    disabled={!formData.state || isLoadingCities}
                   >
                     <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Select City" />
+                      <SelectValue 
+                        placeholder={
+                          isLoadingCities 
+                            ? "Loading cities..." 
+                            : formData.state 
+                              ? "Select City" 
+                              : "Select State First"
+                        }
+                      >
+                        {formData.city && cityMap[formData.city]}
+                      </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
                       {cities.map((city) => (
-                        <SelectItem key={city} value={city}>
-                          {city}
+                        <SelectItem key={city.id} value={city.id}>
+                          {city.name}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -413,11 +632,19 @@ export default function AthleteRegister() {
               <MultipleSelector
                 defaultOptions={OPTIONS}
                 placeholder="Select sports you like..."
-                emptyIndicator={<p className="text-center text-lg leading-10">no results found.</p>}
+                emptyIndicator={
+                  <p className="text-center text-lg leading-10">
+                    no results found.
+                  </p>
+                }
                 onChange={handleSportsChange}
                 value={formData.selectedSports}
               />
-              {formErrors.selectedSports && <p className="mt-1 text-xs text-red-500">{formErrors.selectedSports}</p>}
+              {formErrors.selectedSports && (
+                <p className="mt-1 text-xs text-red-500">
+                  {formErrors.selectedSports}
+                </p>
+              )}
             </div>
 
             <div className="space-y-3">
@@ -438,16 +665,22 @@ export default function AthleteRegister() {
                   className="absolute right-2 top-1/2 -translate-y-1/2"
                   onClick={togglePasswordVisibility}
                 >
-                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  {showPassword ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
                 </Button>
               </div>
 
               {formData.password && (
                 <div className="mt-2 space-y-3">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs">Password strength: {getPasswordStrengthLabel()}</span>
+                    <span className="text-xs">
+                      Password strength: {getPasswordStrengthLabel()}
+                    </span>
                   </div>
-                  <Progress value={passwordStrength} className="h-1" />
+                  <Progress value={passwordStrength} className={`h-1 ${getPasswordStrengthColor()}`} />
 
                   {passwordErrors.length > 0 && (
                     <ul className="mt-1 text-xs text-red-500">
@@ -478,16 +711,26 @@ export default function AthleteRegister() {
                   className="absolute right-2 top-1/2 -translate-y-1/2"
                   onClick={toggleConfirmPasswordVisibility}
                 >
-                  {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  {showConfirmPassword ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
                 </Button>
               </div>
               {!passwordsMatch && formData.confirmPassword && (
-                <p className="mt-1 text-xs text-red-500">Passwords do not match</p>
+                <p className="mt-1 text-xs text-red-500">
+                  Passwords do not match
+                </p>
               )}
             </div>
 
-            <Button type="submit" className="w-full" disabled={!isFormValid}>
-              Register
+            <Button
+              type="submit"
+              className="w-full"
+              disabled={!isFormValid || loading}
+            >
+              {loading ? "Processing..." : "Register"}
             </Button>
           </form>
 
@@ -497,8 +740,18 @@ export default function AthleteRegister() {
             <Separator className="flex-1" />
           </div>
 
-          <Button variant="outline" className="w-full" type="button">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="mr-2 h-4 w-4">
+          <Button
+            variant="outline"
+            className="w-full"
+            type="button"
+            onClick={handleGoogleSignIn}
+            disabled={loading}
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              className="mr-2 h-4 w-4"
+            >
               <path
                 d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
                 fill="#4285F4"
@@ -517,7 +770,7 @@ export default function AthleteRegister() {
               />
               <path d="M1 1h22v22H1z" fill="none" />
             </svg>
-            Continue with Google
+            {loading ? "Processing..." : "Continue with Google"}
           </Button>
         </CardContent>
         <CardFooter className="flex justify-center">
@@ -530,6 +783,5 @@ export default function AthleteRegister() {
         </CardFooter>
       </Card>
     </div>
-  )
+  );
 }
-

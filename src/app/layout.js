@@ -3,6 +3,7 @@ import "./globals.css";
 import { ThemeProvider } from "@/components/custom/theme-provider";
 import BottomTabs from "@/components/custom/bottom-tabs";
 import TopBar from "@/components/custom/top-bar";
+import { AuthProvider } from "@/components/custom/auth-context";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -26,9 +27,11 @@ export default function RootLayout({ children }) {
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         <ThemeProvider>
-          <TopBar />
-          {children}
-          <BottomTabs />
+          <AuthProvider>
+            <TopBar />
+            {children}
+            <BottomTabs />
+          </AuthProvider>
         </ThemeProvider>
       </body>
     </html>

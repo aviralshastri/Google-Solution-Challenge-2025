@@ -25,12 +25,12 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Cookies from "js-cookie";
+import { useAuth } from "@/components/custom/auth-context";
 
 export default function TopBar() {
   const [searchQuery, setSearchQuery] = useState("");
   const [showSuggestions, setShowSuggestions] = useState(false);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const [suggestions, setSuggestions] = useState([
     "Recent searches",
     "Popular topics",
@@ -40,41 +40,11 @@ export default function TopBar() {
   const suggestionsRef = useRef(null);
   const router = useRouter();
   const { theme, setTheme } = useTheme();
+  const { isAuthenticated, logout } = useAuth();
 
   const toggleTheme = () => {
     setTheme(theme === "dark" ? "light" : "dark");
   };
-
-  useEffect(() => {
-    const checkAuthStatus = async () => {
-      const token = Cookies.get("auth_token");
-      if (!token) {
-        setIsAuthenticated(false);
-        setIsLoading(false);
-        return;
-      }
-
-      try {
-        const response = await fetch("/api/auth/token-verify", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ token }),
-        });
-
-        const result = await response.json();
-        setIsAuthenticated(result.valid);
-      } catch (error) {
-        console.error("Error verifying token:", error);
-        setIsAuthenticated(false);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    checkAuthStatus();
-  }, []);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -105,7 +75,7 @@ export default function TopBar() {
 
   const handleLogout = () => {
     Cookies.remove("auth_token");
-    setIsAuthenticated(false);
+    logout();
     router.push("/login");
   };
 
@@ -117,7 +87,12 @@ export default function TopBar() {
             {theme === "dark" ? (
               <Image alt="logo" src={"/logo-dark.png"} height={40} width={40} />
             ) : (
-              <Image alt="logo" src={"/logo-light.png"} height={40} width={40} />
+              <Image
+                alt="logo"
+                src={"/logo-light.png"}
+                height={40}
+                width={40}
+              />
             )}
           </Link>
 
@@ -155,7 +130,6 @@ export default function TopBar() {
             )}
           </div>
 
-          {/* FitMate Icon */}
           <Link href="/fitmate">
             <Button variant="ghost" size="icon" className="rounded-full">
               <MessageSquare className="h-5 w-5" />
@@ -163,7 +137,6 @@ export default function TopBar() {
             </Button>
           </Link>
 
-          {/* Theme Toggle */}
           <Button
             variant="ghost"
             size="icon"
@@ -178,7 +151,6 @@ export default function TopBar() {
             <span className="sr-only">Toggle Theme</span>
           </Button>
 
-          {/* User Menu */}
           {isLoading ? (
             <Button
               variant="ghost"
@@ -206,12 +178,6 @@ export default function TopBar() {
                   <Link href="/profile" className="flex items-center">
                     <User className="mr-2 h-4 w-4" />
                     <span>Profile</span>
-                  </Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <Link href="/analytics" className="flex items-center">
-                    <BarChart2 className="mr-2 h-4 w-4" />
-                    <span>Full Analytics</span>
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
