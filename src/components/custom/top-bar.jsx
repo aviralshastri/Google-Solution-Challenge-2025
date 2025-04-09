@@ -16,7 +16,6 @@ import {
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import Cookies from "js-cookie";
 import { useAuth } from "@/components/custom/auth-context";
 
 export default function TopBar() {
@@ -65,12 +64,6 @@ export default function TopBar() {
     setShowSuggestions(false);
   };
 
-  const handleLogout = () => {
-    Cookies.remove("auth_token");
-    Cookies.remove("userData");
-    logout();
-    router.push("/login");
-  };
 
   return (
     <div className="fixed top-0 left-1/2 -translate-x-1/2 z-50 bg-background border-b border-border shadow-sm w-full lg:w-5/12">
@@ -175,7 +168,7 @@ export default function TopBar() {
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
-                  onClick={handleLogout}
+                  onClick={logout}
                   className="text-red-500 focus:text-red-500"
                 >
                   <LogOut className="mr-2 h-4 w-4" />

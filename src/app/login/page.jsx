@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
+import { doc, getDoc, setDoc } from "firebase/firestore";
 import {
   Card,
   CardContent,
@@ -17,6 +18,14 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   signInWithEmailAndPassword,
   signInWithPopup,
   GoogleAuthProvider,
@@ -25,16 +34,16 @@ import {
   sendEmailVerification,
 } from "firebase/auth";
 import { auth, db } from "@/lib/firebase";
-import { doc, getDoc } from "firebase/firestore";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2, Eye, EyeOff } from "lucide-react";
 import { useAuth } from "@/components/custom/auth-context";
 
-const ERROR_MESSAGES = {
-  "auth/invalid-email": "Invalid credentials.",
-  "auth/user-not-found": "Invalid credentials.",
-  "auth/wrong-password": "Invalid credentials.",
-};
+const INVALID_CRED_ERRORS = [
+  "auth/invalid-email",
+  "auth/user-not-found",
+  "auth/wrong-password",
+  "auth/invalid-credential",
+];
 
 const GoogleLogo = () => (
   <svg
@@ -73,17 +82,57 @@ export default function LoginPage() {
   const googleProvider = new GoogleAuthProvider();
   const { login } = useAuth();
 
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [dialogContent, setDialogContent] = useState({
+    title: "",
+    description: "",
+    isUnverified: false,
+    currentUser: null,
+  });
+
   const handleInputChange = (e) => {
     const { id, value } = e.target;
     setFormData((prev) => ({ ...prev, [id]: value }));
   };
 
   const handleAuthError = (error) => {
-    if (error && error.code && ERROR_MESSAGES[error.code]) {
-      setError(ERROR_MESSAGES[error.code]);
-    } else {
-      console.error("Auth error:", error);
+    if (!error || !error.code) {
       setError("An internal server error occurred.");
+      return;
+    }
+
+    if (INVALID_CRED_ERRORS.includes(error.code)) {
+      setDialogContent({
+        title: "Invalid Credentials",
+        description:
+          "The email or password you entered is incorrect. Please try again.",
+        isUnverified: false,
+      });
+      setDialogOpen(true);
+      return;
+    }
+
+    console.error("Auth error:", error);
+    setError("An unexpected error occurred. Please try again.");
+  };
+
+  const handleEmailVerification = async (user) => {
+    try {
+      await sendEmailVerification(user);
+      setDialogContent({
+        title: "Verification Email Sent",
+        description:
+          "A verification email has been sent to your inbox. Please check your email and verify your account before logging in.",
+        isUnverified: false,
+      });
+    } catch (error) {
+      console.error("Error sending verification email:", error);
+      setDialogContent({
+        title: "Error",
+        description:
+          "Failed to send verification email. Please try again later.",
+        isUnverified: false,
+      });
     }
   };
 
@@ -172,10 +221,13 @@ export default function LoginPage() {
       );
 
       if (!userCredential.user.emailVerified) {
-        setError(
-          "Please verify your email before logging in. An email has been sent for verification. Complete the process and then come back."
-        );
-        await sendEmailVerification(userCredential.user);
+        setDialogContent({
+          title: "Unverified Account",
+          description: "Please verify your email before logging in.",
+          isUnverified: true,
+          currentUser: userCredential.user,
+        });
+        setDialogOpen(true);
         setIsLoading(false);
         return;
       }
@@ -185,9 +237,32 @@ export default function LoginPage() {
       login();
       router.push("/");
     } catch (error) {
+      console.log(error);
       handleAuthError(error);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const storeUserData = async (userId, userData) => {
+    try {
+      await setDoc(doc(db, "accounts", userId), userData);
+      return true;
+    } catch (error) {
+      console.error("Error storing user data:", error);
+      alert(`Error storing user data: ${error.message}`);
+      return false;
+    }
+  };
+  const verifyUserAccount = async (uid) => {
+    try {
+      const userDocRef = doc(db, "accounts", uid);
+      const userDocSnap = await getDoc(userDocRef);
+
+      return userDocSnap.exists();
+    } catch (error) {
+      console.error("Error checking user in Firestore:", error);
+      throw new Error("Failed to verify user account");
     }
   };
 
@@ -203,9 +278,49 @@ export default function LoginPage() {
       await setPersistence(auth, browserSessionPersistence);
       const result = await signInWithPopup(auth, googleProvider);
 
-      const token = await getJwtToken(result.user);
-      saveTokenToCookie(token);
+      const userData = {
+        accountType: "athlete",
+        fullName: result.user.displayName || "",
+        email: result.user.email || "",
+        createdAt: new Date(),
+      };
 
+      const userExists = await verifyUserAccount(result.user.uid);
+
+      if (!userExists) {
+        const minimalUserData = {
+          fullName: result.user.displayName || "",
+          email: result.user.email || "",
+          accountType: "athlete"
+        };
+
+        const stored = await storeUserData(result.user.uid, minimalUserData);
+
+        if (stored) {
+          console.log("User account created with Google");
+        }
+      }
+
+      const response = await fetch("/api/auth/token-generate", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          uid: result.user.uid,
+          email: userData.email,
+          accountType: userData.accountType,
+          fullName: userData.fullName,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to get authentication token");
+      }
+
+      const data = await response.json();
+      saveTokenToCookie(data.token);
+      login();
       router.push("/");
     } catch (error) {
       handleAuthError(error);
@@ -343,6 +458,37 @@ export default function LoginPage() {
           </p>
         </CardFooter>
       </Card>
+
+      {/* Error/Warning Dialogs */}
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{dialogContent.title}</DialogTitle>
+            <DialogDescription>{dialogContent.description}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex justify-center sm:justify-end">
+            {dialogContent.isUnverified ? (
+              <>
+                <Button
+                  variant="secondary"
+                  onClick={() => setDialogOpen(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={() => {
+                    handleEmailVerification(dialogContent.currentUser);
+                  }}
+                >
+                  Send Verification Email
+                </Button>
+              </>
+            ) : (
+              <Button onClick={() => setDialogOpen(false)}>OK</Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

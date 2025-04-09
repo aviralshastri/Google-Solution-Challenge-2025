@@ -1,20 +1,32 @@
-"use client"
+"use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react"
-import { useRouter } from "next/navigation"
-import Cookies from "js-cookie"
-import { doc, updateDoc } from "firebase/firestore"
-import { db } from "@/lib/firebase"
-import { getPayloadFromToken } from "@/lib/getTokenPayload"
-import MultipleSelector from "@/components/ui/multiple-selector"
+import { useState, useEffect, useCallback, useMemo } from "react";
+import { useRouter } from "next/navigation";
+import { doc, getDoc, updateDoc } from "firebase/firestore";
+import { db } from "@/lib/firebase";
+import { getPayloadFromToken } from "@/lib/getTokenPayload";
+import MultipleSelector from "@/components/ui/multiple-selector";
 
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Slider } from "@/components/ui/slider"
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Slider } from "@/components/ui/slider";
 
 const OPTIONS = [
   { label: "Track & Field", value: "track_field" },
@@ -27,310 +39,418 @@ const OPTIONS = [
   { label: "Weightlifting", value: "weightlifting" },
   { label: "Rowing", value: "rowing" },
   { label: "CrossFit", value: "crossfit" },
-]
+];
 
 export default function AthleteEditProfile() {
-  const router = useRouter()
+  const router = useRouter();
   const [formData, setFormData] = useState({
     fullName: "",
     phone: "",
     age: 25,
-    weight: 70,
+    weight: 0,
     state: "",
     city: "",
     selectedSports: [],
     gender: "",
     bio: "",
-  })
-  const [originalData, setOriginalData] = useState({})
-  const [changedFields, setChangedFields] = useState({})
-  const [locationData, setLocationData] = useState({ states: [] })
-  const [cities, setCities] = useState([])
+  });
+  const [originalData, setOriginalData] = useState({});
+  const [changedFields, setChangedFields] = useState({});
+  const [locationData, setLocationData] = useState({ states: [] });
+  const [cities, setCities] = useState([]);
   const [formErrors, setFormErrors] = useState({
+    fullName: "",
     phone: "",
-    selectedSports: "",
-  })
-  const [loading, setLoading] = useState(false)
-  const [isLoading, setIsLoading] = useState(true)
+    age: "",
+    weight: "",
+    gender: "",
+    selectedSports: ""
+  });
+  const [loading, setLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Fetch user data from cookies and token
   useEffect(() => {
     const fetchUserData = async () => {
       try {
-        setIsLoading(true)
-        // Get user data from cookies
-        const cookieData = Cookies.get("userData")
-        console.log("Raw cookie data:", cookieData)
+        setIsLoading(true);
 
-        let userData = {}
-        if (cookieData) {
-          userData = JSON.parse(cookieData)
-          console.log("Parsed user data from cookies:", userData)
+        const tokenData = await getPayloadFromToken();
+        const uid = tokenData.uid;
+
+        if (!uid) {
+          throw new Error("User ID not found");
         }
+        const userDocRef = doc(db, "accounts", uid);
+        const userDoc = await getDoc(userDocRef);
 
-        if (userData) {
-          // Create a new object with the user data and default values
+        if (userDoc.exists()) {
+          const userData = userDoc.data();
+          console.log("User data from Firestore:", userData);
+
           const newFormData = {
             fullName: userData.fullName || "",
             phone: userData.phone || "",
             age: userData.age || 25,
-            weight: userData.weight || 70,
-            state: userData.stateName || "",
-            city: userData.cityName || "",
+            weight: userData.weight || 0,
+            state: userData.state || "",
+            city: userData.city || "",
             selectedSports: userData.selectedSports || [],
             gender: userData.gender || "",
             bio: userData.bio || "",
-          }
+          };
 
-          console.log("Setting form data to:", newFormData)
+          console.log("Setting form data to:", newFormData);
 
-          // Set the form data with user data
-          setFormData(newFormData)
+          setFormData(newFormData);
 
-          // Store original data for comparison
-          setOriginalData({ ...newFormData })
+          setOriginalData({ ...newFormData });
 
-          // If state exists, fetch cities for that state
           if (userData.state) {
-            fetchCitiesForState(userData.state)
+            fetchCitiesForState(userData.state);
           }
+        } else {
+          console.log("No user document found!");
         }
       } catch (error) {
-        console.error("Error fetching user data:", error)
-        alert("Failed to load your profile data")
+        console.error("Error fetching user data:", error);
+        alert("Failed to load your profile data");
       } finally {
-        setIsLoading(false)
+        setIsLoading(false);
       }
-    }
+    };
 
-    fetchUserData()
-  }, [])
+    fetchUserData();
+  }, []);
 
   const fetchCitiesForState = async (state) => {
     if (state) {
       try {
-        const response = await fetch(`/api/other/get-city?state=${state}`)
+        const response = await fetch(`/api/other/get-city?state=${state}`);
         if (!response.ok) {
-          throw new Error("Failed to fetch cities")
+          throw new Error("Failed to fetch cities");
         }
-        const cities = await response.json()
-        setCities(cities)
+        const cities = await response.json();
+        setCities(cities);
       } catch (error) {
-        console.error("Error loading cities:", error)
-        setCities([])
+        console.error("Error loading cities:", error);
+        setCities([]);
       }
     }
-  }
+  };
 
-  // Track changed fields
   useEffect(() => {
-    const newChangedFields = {}
+    const newChangedFields = {};
 
     Object.keys(formData).forEach((key) => {
-      // For arrays (like selectedSports), we need to compare differently
       if (Array.isArray(formData[key])) {
-        if (JSON.stringify(formData[key]) !== JSON.stringify(originalData[key])) {
-          newChangedFields[key] = formData[key]
+        if (
+          JSON.stringify(formData[key]) !== JSON.stringify(originalData[key])
+        ) {
+          newChangedFields[key] = formData[key];
         }
       } else if (formData[key] !== originalData[key]) {
-        newChangedFields[key] = formData[key]
+        newChangedFields[key] = formData[key];
       }
-    })
+    });
 
-    setChangedFields(newChangedFields)
-    console.log("Changed fields:", newChangedFields)
-  }, [formData, originalData])
+    setChangedFields(newChangedFields);
+    console.log("Changed fields:", newChangedFields);
+  }, [formData, originalData]);
 
   useEffect(() => {
     const fetchStates = async () => {
       try {
-        const response = await fetch("/api/other/get-state")
+        const response = await fetch("/api/other/get-state");
         if (!response.ok) {
-          throw new Error("Failed to fetch states")
+          throw new Error("Failed to fetch states");
         }
-        const states = await response.json()
-        setLocationData((prev) => ({ ...prev, states }))
+        const states = await response.json();
+        setLocationData((prev) => ({ ...prev, states }));
       } catch (error) {
-        console.error("Error loading states:", error)
+        console.error("Error loading states:", error);
       }
-    }
+    };
 
-    fetchStates()
-  }, [])
+    fetchStates();
+  }, []);
 
   useEffect(() => {
     const fetchCities = async () => {
       if (formData.state) {
         try {
-          const response = await fetch(`/api/other/get-city?state=${formData.state}`)
+          const response = await fetch(
+            `/api/other/get-city?state=${formData.state}`
+          );
           if (!response.ok) {
-            throw new Error("Failed to fetch cities")
+            throw new Error("Failed to fetch cities");
           }
-          const cities = await response.json()
-          setCities(cities)
+          const cities = await response.json();
+          setCities(cities);
         } catch (error) {
-          console.error("Error loading cities:", error)
-          setCities([])
+          console.error("Error loading cities:", error);
+          setCities([]);
         }
       } else {
-        setCities([])
+        setCities([]);
       }
-    }
+    };
 
-    fetchCities()
-  }, [formData.state])
+    fetchCities();
+  }, [formData.state]);
 
-  // Validate phone number format
+  // Validate fullName (no special characters except space)
   useEffect(() => {
-    if (formData.phone) {
-      if (formData.phone.length !== 10) {
+    if (formData.fullName) {
+      const nameRegex = /^[A-Za-z\s]+$/;
+      if (!nameRegex.test(formData.fullName)) {
         setFormErrors((prev) => ({
           ...prev,
-          phone: "Phone number must be exactly 10 digits",
-        }))
+          fullName: "Name can only contain letters and spaces",
+        }));
       } else {
         setFormErrors((prev) => ({
           ...prev,
-          phone: "",
-        }))
+          fullName: "",
+        }));
       }
     } else {
       setFormErrors((prev) => ({
         ...prev,
-        phone: "",
-      }))
+        fullName: "Full name is required",
+      }));
     }
-  }, [formData.phone])
+  }, [formData.fullName]);
 
-  // Validate selected sports
+  // Validate phone
+  useEffect(() => {
+    if (!formData.phone) {
+      setFormErrors((prev) => ({
+        ...prev,
+        phone: "Phone number is required",
+      }));
+    } else if (formData.phone.length !== 10) {
+      setFormErrors((prev) => ({
+        ...prev,
+        phone: "Phone number must be exactly 10 digits",
+      }));
+    } else {
+      setFormErrors((prev) => ({
+        ...prev,
+        phone: "",
+      }));
+    }
+  }, [formData.phone]);
+
+  // Validate age
+  useEffect(() => {
+    if (!formData.age || formData.age <= 0) {
+      setFormErrors((prev) => ({
+        ...prev,
+        age: "Age must be greater than 0",
+      }));
+    } else {
+      setFormErrors((prev) => ({
+        ...prev,
+        age: "",
+      }));
+    }
+  }, [formData.age]);
+
+  // Validate weight
+  useEffect(() => {
+    if (!formData.weight || formData.weight <= 0) {
+      setFormErrors((prev) => ({
+        ...prev,
+        weight: "Weight must be greater than 0",
+      }));
+    } else {
+      setFormErrors((prev) => ({
+        ...prev,
+        weight: "",
+      }));
+    }
+  }, [formData.weight]);
+
+  // Validate gender
+  useEffect(() => {
+    if (!formData.gender) {
+      setFormErrors((prev) => ({
+        ...prev,
+        gender: "Please select a gender",
+      }));
+    } else {
+      setFormErrors((prev) => ({
+        ...prev,
+        gender: "",
+      }));
+    }
+  }, [formData.gender]);
+
+  // Validate sports
   useEffect(() => {
     if (formData.selectedSports.length === 0) {
       setFormErrors((prev) => ({
         ...prev,
         selectedSports: "Please select at least one sport",
-      }))
+      }));
     } else {
       setFormErrors((prev) => ({
         ...prev,
         selectedSports: "",
-      }))
+      }));
     }
-  }, [formData.selectedSports])
+  }, [formData.selectedSports]);
 
   const handleChange = useCallback((e) => {
-    const { name, value } = e.target
+    const { name, value } = e.target;
     if (name === "phone") {
-      const numericValue = value.replace(/\D/g, "")
-      // Limit to 10 digits
+      const numericValue = value.replace(/\D/g, "");
       if (numericValue.length <= 10) {
-        setFormData((prev) => ({ ...prev, [name]: numericValue }))
+        setFormData((prev) => ({ ...prev, [name]: numericValue }));
       }
-      return
+      return;
     }
 
-    setFormData((prev) => ({ ...prev, [name]: value }))
-  }, [])
+    if (name === "weight") {
+      const numValue = parseFloat(value);
+      setFormData((prev) => ({ ...prev, [name]: numValue || 0 }));
+      return;
+    }
+
+    setFormData((prev) => ({ ...prev, [name]: value }));
+  }, []);
 
   const handleSelectChange = useCallback((name, value) => {
-    console.log(`Selecting ${name}: ${value}`)
+    console.log(`Selecting ${name}: ${value}`);
     setFormData((prev) => {
       if (name === "state") {
-        return { ...prev, [name]: value, city: "" }
+        return { ...prev, [name]: value, city: "" };
       }
-      return { ...prev, [name]: value }
-    })
-  }, [])
+      return { ...prev, [name]: value };
+    });
+  }, []);
 
   const handleSliderChange = useCallback((value) => {
-    setFormData((prev) => ({ ...prev, age: value[0] }))
-  }, [])
+    setFormData((prev) => ({ ...prev, age: value[0] }));
+  }, []);
 
   const handleSportsChange = useCallback((selectedOptions) => {
     setFormData((prev) => ({
       ...prev,
       selectedSports: selectedOptions,
-    }))
-  }, [])
+    }));
+  }, []);
 
   const isFormValid = useMemo(() => {
-    return formData.selectedSports.length > 0 && formData.phone.length === 10 && formData.gender !== ""
-  }, [formData.selectedSports, formData.phone, formData.gender])
+    return (
+      formData.fullName.trim() !== "" &&
+      /^[A-Za-z\s]+$/.test(formData.fullName) &&
+      formData.phone.length === 10 &&
+      formData.age > 0 &&
+      formData.weight > 0 &&
+      formData.gender !== "" &&
+      formData.selectedSports.length > 0
+    );
+  }, [formData.fullName, formData.phone, formData.age, formData.weight, formData.gender, formData.selectedSports]);
 
-  const hasChanges = Object.keys(changedFields).length > 0
+  const hasChanges = Object.keys(changedFields).length > 0;
 
   const handleSubmit = async (e) => {
-    e.preventDefault()
+    e.preventDefault();
 
-    const errors = {}
+    const errors = {};
 
-    if (formData.phone.length !== 10) {
-      errors.phone = "Phone number must be exactly 10 digits"
+    // Validate full name
+    if (!formData.fullName.trim()) {
+      errors.fullName = "Full name is required";
+    } else {
+      const nameRegex = /^[A-Za-z\s]+$/;
+      if (!nameRegex.test(formData.fullName)) {
+        errors.fullName = "Name can only contain letters and spaces";
+      }
     }
 
+    // Validate phone
+    if (!formData.phone) {
+      errors.phone = "Phone number is required";
+    } else if (formData.phone.length !== 10) {
+      errors.phone = "Phone number must be exactly 10 digits";
+    }
+
+    // Validate age
+    if (!formData.age || formData.age <= 0) {
+      errors.age = "Age must be greater than 0";
+    }
+
+    // Validate weight
+    if (!formData.weight || formData.weight <= 0) {
+      errors.weight = "Weight must be greater than 0";
+    }
+
+    // Validate gender
+    if (!formData.gender) {
+      errors.gender = "Please select a gender";
+    }
+
+    // Validate sports
     if (formData.selectedSports.length === 0) {
-      errors.selectedSports = "Please select at least one sport"
+      errors.selectedSports = "Please select at least one sport";
     }
 
-    setFormErrors((prev) => ({ ...prev, ...errors }))
+    setFormErrors((prev) => ({ ...prev, ...errors }));
 
     if (Object.keys(errors).length > 0 || !isFormValid || !hasChanges) {
-      return
+      return;
     }
 
     try {
-      setLoading(true)
+      setLoading(true);
 
-      // Get UID from token
-      const tokenData = await getPayloadFromToken()
-      const uid = tokenData.uid
+      const tokenData = await getPayloadFromToken();
+      const uid = tokenData.uid;
 
-      console.log("User ID from token:", uid)
-      console.log("Updating fields:", changedFields)
+      console.log("User ID from token:", uid);
+      console.log("Updating fields:", changedFields);
 
       if (!uid) {
-        throw new Error("User ID not found")
+        throw new Error("User ID not found");
       }
 
-      // Update only changed fields in Firestore
-      const userDocRef = doc(db, "accounts", uid)
-      await updateDoc(userDocRef, changedFields)
+      const userDocRef = doc(db, "accounts", uid);
+      await updateDoc(userDocRef, changedFields);
 
-      // Update cookie data
-      const cookieData = Cookies.get("userData")
-      const userData = cookieData ? JSON.parse(cookieData) : {}
+      setOriginalData({ ...formData });
+      setChangedFields({});
 
-      // Update only changed fields in cookie data
-      const updatedUserData = { ...userData, ...changedFields }
-      Cookies.set("userData", JSON.stringify(updatedUserData))
-
-      console.log("Updated user data in cookies:", updatedUserData)
-
-      // Update original data to reflect the new state
-      setOriginalData({ ...formData })
-      setChangedFields({})
-
-      alert("Your profile has been updated successfully")
+      alert("Your profile has been updated successfully");
     } catch (error) {
-      console.error("Error updating profile:", error)
-      alert(`Failed to update profile: ${error.message}`)
+      console.error("Error updating profile:", error);
+      alert(`Failed to update profile: ${error.message}`);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   if (isLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
-        <div className="text-center">
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
-          <p className="mt-2">Loading your profile...</p>
-        </div>
+        <Card className="w-full max-w-md p-8">
+          <CardContent className="flex flex-col items-center justify-center py-6">
+            <div className="h-12 w-12 animate-spin rounded-full border-4 border-primary border-t-transparent mb-4"></div>
+            <p className="text-lg font-medium text-center">
+              Loading your profile...
+            </p>
+            <p className="text-sm text-muted-foreground mt-2">
+              This may take a few moments
+            </p>
+          </CardContent>
+        </Card>
       </div>
-    )
+    );
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center p-4 px-4 py-20">
+    <div className="flex min-h-screen items-center justify-center p-4 px-4 py-20 px-2">
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
           <CardTitle className="text-2xl font-bold">Edit Profile</CardTitle>
@@ -348,6 +468,9 @@ export default function AthleteEditProfile() {
                 onChange={handleChange}
                 required
               />
+              {formErrors.fullName && (
+                <p className="mt-1 text-xs text-red-500">{formErrors.fullName}</p>
+              )}
             </div>
 
             <div className="space-y-3">
@@ -364,7 +487,9 @@ export default function AthleteEditProfile() {
                 maxLength={10}
                 required
               />
-              {formErrors.phone && <p className="mt-1 text-xs text-red-500">{formErrors.phone}</p>}
+              {formErrors.phone && (
+                <p className="mt-1 text-xs text-red-500">{formErrors.phone}</p>
+              )}
             </div>
 
             <div className="space-y-3">
@@ -378,6 +503,9 @@ export default function AthleteEditProfile() {
                 onValueChange={handleSliderChange}
                 className="py-4"
               />
+              {formErrors.age && (
+                <p className="mt-1 text-xs text-red-500">{formErrors.age}</p>
+              )}
             </div>
 
             <div className="space-y-3">
@@ -386,12 +514,15 @@ export default function AthleteEditProfile() {
                 id="weight"
                 name="weight"
                 type="number"
-                min={30}
+                min={1}
                 max={200}
                 value={formData.weight}
                 onChange={handleChange}
                 required
               />
+              {formErrors.weight && (
+                <p className="mt-1 text-xs text-red-500">{formErrors.weight}</p>
+              )}
             </div>
 
             <div className="space-y-3">
@@ -411,7 +542,9 @@ export default function AthleteEditProfile() {
                 id="gender"
                 name="gender"
                 value={formData.gender}
-                onValueChange={(value) => setFormData((prev) => ({ ...prev, gender: value }))}
+                onValueChange={(value) =>
+                  setFormData((prev) => ({ ...prev, gender: value }))
+                }
                 className="flex space-x-4"
                 required
               >
@@ -428,6 +561,9 @@ export default function AthleteEditProfile() {
                   <Label htmlFor="other">Other</Label>
                 </div>
               </RadioGroup>
+              {formErrors.gender && (
+                <p className="mt-1 text-xs text-red-500">{formErrors.gender}</p>
+              )}
             </div>
 
             <div className="space-y-3">
@@ -435,7 +571,9 @@ export default function AthleteEditProfile() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="w-full">
                   <Select
-                    onValueChange={(value) => handleSelectChange("state", value)}
+                    onValueChange={(value) =>
+                      handleSelectChange("state", value)
+                    }
                     value={formData.state}
                     defaultValue={formData.state}
                   >
@@ -477,25 +615,40 @@ export default function AthleteEditProfile() {
               <MultipleSelector
                 defaultOptions={OPTIONS}
                 placeholder="Select sports you like..."
-                emptyIndicator={<p className="text-center text-lg leading-10">no results found.</p>}
+                emptyIndicator={
+                  <p className="text-center text-lg leading-10">
+                    no results found.
+                  </p>
+                }
                 onChange={handleSportsChange}
                 value={formData.selectedSports}
               />
-              {formErrors.selectedSports && <p className="mt-1 text-xs text-red-500">{formErrors.selectedSports}</p>}
+              {formErrors.selectedSports && (
+                <p className="mt-1 text-xs text-red-500">
+                  {formErrors.selectedSports}
+                </p>
+              )}
             </div>
 
-            <Button type="submit" className="w-full" disabled={!isFormValid || loading || !hasChanges}>
+            <Button
+              type="submit"
+              className="w-full"
+              disabled={!isFormValid || loading || !hasChanges}
+            >
               {loading ? "Saving..." : "Save Changes"}
             </Button>
           </form>
         </CardContent>
         <CardFooter className="flex justify-center">
-          <Button variant="outline" onClick={() => router.push("/dashboard")} className="w-full">
+          <Button
+            variant="outline"
+            onClick={() => router.push("/dashboard")}
+            className="w-full"
+          >
             Cancel
           </Button>
         </CardFooter>
       </Card>
     </div>
-  )
+  );
 }
-

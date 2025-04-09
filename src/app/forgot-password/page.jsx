@@ -15,6 +15,8 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { sendPasswordResetEmail } from "firebase/auth";
+import { auth } from "@/lib/firebase";
 
 export default function ForgotPassword() {
   const router = useRouter();
@@ -28,35 +30,38 @@ export default function ForgotPassword() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     if (!email) return;
-    
+
     setIsSubmitting(true);
-    
-    try {
-      // Here you would typically call your API to send the reset email
-      console.log("Sending password reset to:", email);
-      
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      setIsSubmitted(true);
-    } catch (error) {
-      console.error("Error sending reset email:", error);
-    } finally {
-      setIsSubmitting(false);
-    }
+
+    sendPasswordResetEmail(auth, email)
+      .then(() => {
+        setIsSubmitted(true);
+        alert(
+          "If the email exists in our system, a password reset link has been sent."
+        );
+      })
+      .catch((error) => {
+        console.log(error.code, error.message);
+        setIsSubmitting(false);
+        setIsSubmitted(true);
+        alert(
+          "If the email exists in our system, a password reset link has been sent."
+        );
+      });
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center p-4 px-4 py-20">
+    <div className="flex min-h-screen items-center justify-center p-4 py-20 px-2">
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
           <CardTitle className="text-2xl font-bold">
             Forgot your password?
           </CardTitle>
           <CardDescription>
-            Enter your email address and we'll send you a link to reset your password.
+            Enter your email address and we'll send you a link to reset your
+            password.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -76,11 +81,7 @@ export default function ForgotPassword() {
                 />
               </div>
 
-              <Button
-                type="submit"
-                className="w-full"
-                disabled={isSubmitting}
-              >
+              <Button type="submit" className="w-full" disabled={isSubmitting}>
                 {isSubmitting ? "Sending..." : "Send password reset link"}
               </Button>
             </form>
@@ -89,8 +90,16 @@ export default function ForgotPassword() {
               <div className="rounded-md bg-green-50 p-4">
                 <div className="flex">
                   <div className="flex-shrink-0">
-                    <svg className="h-5 w-5 text-green-400" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                    <svg
+                      className="h-5 w-5 text-green-400"
+                      viewBox="0 0 20 20"
+                      fill="currentColor"
+                    >
+                      <path
+                        fillRule="evenodd"
+                        d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                        clipRule="evenodd"
+                      />
                     </svg>
                   </div>
                   <div className="ml-3">
@@ -101,11 +110,13 @@ export default function ForgotPassword() {
                 </div>
               </div>
               <p className="text-sm text-gray-600">
-                We've sent a password reset link to <span className="font-medium">{email}</span>.
-                Please check your email and follow the instructions to reset your password.
+                We've sent a password reset link to{" "}
+                <span className="font-medium">{email}</span>. Please check your
+                email and follow the instructions to reset your password.
               </p>
               <p className="text-sm text-gray-500">
-                If you don't see the email, check your spam folder or make sure you entered the correct email address.
+                If you don't see the email, check your spam folder or make sure
+                you entered the correct email address.
               </p>
               <Button
                 className="w-full"
@@ -127,7 +138,11 @@ export default function ForgotPassword() {
           </div>
 
           <div className="flex flex-col space-y-2">
-            <Button variant="outline" className="w-full" onClick={() => router.push("/login")}>
+            <Button
+              variant="outline"
+              className="w-full"
+              onClick={() => router.push("/login")}
+            >
               Back to login
             </Button>
             <div className="text-center text-sm">

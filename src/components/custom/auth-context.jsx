@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect } from "react";
 import Cookies from "js-cookie";
+import { useRouter } from "next/navigation";
 
 const AuthContext = createContext({
   isAuthenticated: false,
@@ -11,6 +12,7 @@ const AuthContext = createContext({
 
 export function AuthProvider({ children }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const router = useRouter();
 
   useEffect(() => {
     const verifyToken = async () => {
@@ -20,10 +22,10 @@ export function AuthProvider({ children }) {
           setIsAuthenticated(false);
           return;
         }
-      
+
         const baseUrl = process.env.BASE_URL || window.location.origin;
         const verifyUrl = `${baseUrl}/api/auth/token-verify`;
-        
+
         const verifyResponse = await fetch(verifyUrl, {
           method: "POST",
           headers: {
@@ -43,7 +45,7 @@ export function AuthProvider({ children }) {
         setIsAuthenticated(false);
       }
     };
-    
+
     verifyToken();
   }, []);
 
@@ -52,7 +54,9 @@ export function AuthProvider({ children }) {
   };
 
   const logout = () => {
+    Cookies.remove("auth_token");
     setIsAuthenticated(false);
+    router.push("/login");
   };
 
   const authContextValue = {

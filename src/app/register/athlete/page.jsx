@@ -170,7 +170,7 @@ export default function AthleteRegister() {
     setPasswordErrors(errors);
   }, [formData.password, checkPasswordStrength]);
 
-  // Validate phone number format
+
   useEffect(() => {
     if (formData.phone) {
       if (formData.phone.length !== 10) {
@@ -192,7 +192,7 @@ export default function AthleteRegister() {
     }
   }, [formData.phone]);
 
-  // Validate selected sports
+
   useEffect(() => {
     if (formData.selectedSports.length === 0) {
       setFormErrors((prev) => ({
@@ -211,7 +211,6 @@ export default function AthleteRegister() {
     const { name, value } = e.target;
     if (name === "phone") {
       const numericValue = value.replace(/\D/g, "");
-      // Limit to 10 digits
       if (numericValue.length <= 10) {
         setFormData((prev) => ({ ...prev, [name]: numericValue }));
       }
@@ -257,13 +256,6 @@ export default function AthleteRegister() {
     return "Strong";
   }, [passwordStrength]);
 
-  const getPasswordStrengthColor = useCallback(() => {
-    if (passwordStrength <= 25) return "bg-red-500";
-    if (passwordStrength <= 50) return "bg-yellow-500";
-    if (passwordStrength <= 75) return "bg-blue-500";
-    return "bg-green-500";
-  }, [passwordStrength]);
-
   const isFormValid = useMemo(() => {
     return (
       passwordsMatch &&
@@ -280,7 +272,6 @@ export default function AthleteRegister() {
     formData.gender,
   ]);
 
-  // Store user data in Firestore
   const storeUserData = async (userId, userData) => {
     try {
       await setDoc(doc(db, "accounts", userId), userData);
@@ -292,7 +283,6 @@ export default function AthleteRegister() {
     }
   };
 
-  // Handle Google Sign In
   const handleGoogleSignIn = async () => {
     try {
       setLoading(true);
@@ -310,7 +300,7 @@ export default function AthleteRegister() {
         state: "",
         city: "",
         selectedSports: [],
-        gender: "", // Add gender field
+        gender: "",
         createdAt: new Date(),
         photoURL: user.photoURL || "",
       };
@@ -319,7 +309,7 @@ export default function AthleteRegister() {
 
       if (stored) {
         alert("Registration successful with Google!");
-        router.push("/dashboard");
+        router.push("/login");
       }
     } catch (error) {
       console.error("Error signing in with Google:", error);
@@ -351,7 +341,7 @@ export default function AthleteRegister() {
     try {
       setLoading(true);
 
-      // Create user with email and password
+
       const userCredential = await createUserWithEmailAndPassword(
         auth,
         formData.email,
@@ -360,7 +350,6 @@ export default function AthleteRegister() {
 
       const user = userCredential.user;
 
-      // Prepare user data for Firestore (excluding password and confirmPassword)
       const userData = {
         fullName: formData.fullName,
         email: formData.email,
@@ -371,22 +360,21 @@ export default function AthleteRegister() {
         state: formData.state,
         city: formData.city,
         selectedSports: formData.selectedSports,
-        gender: formData.gender, // Add gender field
+        gender: formData.gender,
         createdAt: new Date(),
         emailVerified: false,
+        photoURL: user.photoURL || "",
       };
 
-      // Store in Firestore using Auth UID as document ID
       const stored = await storeUserData(user.uid, userData);
 
       if (stored) {
-        // Send verification email
         await sendEmailVerification(user);
 
         alert(
           "Registration successful! Please check your email to verify your account."
         );
-        router.push("/login"); // Redirect to login page
+        router.push("/login"); 
       }
     } catch (error) {
       console.error("Error registering with email/password:", error);
@@ -397,7 +385,7 @@ export default function AthleteRegister() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center p-4 px-4 py-20">
+    <div className="flex min-h-screen items-center justify-center p-4 px-4 py-20 px-2">
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
           <CardTitle className="text-2xl font-bold">

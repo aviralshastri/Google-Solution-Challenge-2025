@@ -51,7 +51,6 @@ export async function POST(req) {
     
     const result = await response.json();
     
-    // Process the prediction results
     let predictedDays = processPrediction(result);
 
     
@@ -59,7 +58,7 @@ export async function POST(req) {
       success: true,
       prediction: result.predictions[0],
       predictedDays: predictedDays,
-      rawResponse: result // Include the full response in the return value
+      rawResponse: result
     });
     
   } catch (error) {

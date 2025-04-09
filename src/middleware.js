@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { useAuth as AUTH } from "./components/custom/auth-context";
 
 const protectedRoutes = [
   "/profile",
@@ -12,8 +13,9 @@ const protectedRoutes = [
 const authRoutes = ["/login", "/register", "/forgot-password"];
 
 export async function middleware(request) {
-  const baseUrl = process.env.BASE_URL;
+  const { logout } = AUTH();
 
+  const baseUrl = process.env.BASE_URL;
   const { pathname } = request.nextUrl;
 
   const isProtectedRoute = protectedRoutes.some(
@@ -99,18 +101,18 @@ export async function middleware(request) {
 
       if (isProtectedRoute) {
         const response = NextResponse.redirect(new URL("/login", baseUrl));
-        response.cookies.delete("auth_token");
+        logout();
         return response;
       }
 
       if (isAuthRoute) {
         const response = NextResponse.next();
-        response.cookies.delete("auth_token");
+        logout();
         return response;
       }
 
       const response = NextResponse.next();
-      response.cookies.delete("auth_token");
+      logout();
       return response;
     }
   } catch (error) {
@@ -118,12 +120,12 @@ export async function middleware(request) {
 
     if (isProtectedRoute) {
       const response = NextResponse.redirect(new URL("/login", baseUrl));
-      response.cookies.delete("auth_token");
+      logout();
       return response;
     }
 
     const response = NextResponse.next();
-    response.cookies.delete("auth_token");
+    logout();
     return response;
   }
 }

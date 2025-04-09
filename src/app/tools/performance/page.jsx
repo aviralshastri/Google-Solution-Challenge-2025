@@ -144,7 +144,7 @@ export default function RunningTracker() {
   };
 
   return (
-    <div className="w-full lg:w-5/12 py-20 mx-auto">
+    <div className="w-full lg:w-5/12 py-20 px-2 mx-auto">
       <Card className="shadow-lg">
         <CardHeader className="border-b">
           <CardTitle className="text-2xl font-bold text-center">

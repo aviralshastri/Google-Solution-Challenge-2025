@@ -177,7 +177,7 @@ export default function Injury() {
   };
 
   return (
-    <div className="w-full lg:w-5/12 mx-auto p-4 py-20">
+    <div className="w-full lg:w-5/12 mx-auto p-4 py-20 px-2">
       <Card className="shadow-lg">
         <CardHeader className="bg-primary/5">
           <CardTitle className="flex items-center gap-2 text-2xl">

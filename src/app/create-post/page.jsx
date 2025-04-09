@@ -18,6 +18,16 @@ import {
   getDoc,
 } from "firebase/firestore";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+import { 
+  AlertDialog, 
+  AlertDialogAction, 
+  AlertDialogCancel, 
+  AlertDialogContent, 
+  AlertDialogDescription, 
+  AlertDialogFooter, 
+  AlertDialogHeader, 
+  AlertDialogTitle 
+} from "@/components/ui/alert-dialog";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { getPayloadFromToken } from "@/lib/getTokenPayload";
 
@@ -36,6 +46,18 @@ const OPTIONS = [
   { label: "Recruitment", value: "recruitment" },
   { label: "Fitness Tech", value: "fitness-tech" },
   { label: "Motivation", value: "motivation" },
+];
+
+const requiredFields = [
+  "fullName",
+  "age",
+  "weight",
+  "gender",
+  "city",
+  "state",
+  "phone",
+  "email",
+  "selectedSports",
 ];
 
 export default function CreatePost() {
@@ -58,6 +80,8 @@ export default function CreatePost() {
     title: "",
     message: "",
   });
+  const [isProfileComplete, setIsProfileComplete] = useState(true);
+  const [showProfileAlert, setShowProfileAlert] = useState(false);
 
   useEffect(() => {
     const fetchUserData = async () => {
@@ -65,20 +89,50 @@ export default function CreatePost() {
         const data = await getPayloadFromToken();
         if (data) {
           setUserId(data.uid);
-          setUserName(data.fullName)
-          setUserHandle("@"+data.email)
+          
+          // Default values from token
+          let defaultName = data.fullName || "";
+          let defaultEmail = data.email || "";
+          
           try {
             const userDocRef = doc(db, "accounts", data.uid);
             const userDoc = await getDoc(userDocRef);
             
             if (userDoc.exists()) {
               const userData = userDoc.data();
-              if (userData.name) setUserName(userData.name);
-              if (userData.username) setUserHandle(`@${userData.username}`);
-              if (userData.profilePicture) setUserAvatar(userData.profilePicture);
+              
+              // Use data from DB if available, fallback to token data
+              setUserName(userData.fullName || defaultName);
+              setUserHandle("@" + (userData.email || defaultEmail));
+              
+              if (userData.profilePicture) {
+                setUserAvatar(userData.profilePicture);
+              }
+              
+              // Check if profile is complete
+              const isComplete = checkProfileComplete(userData);
+              setIsProfileComplete(isComplete);
+              
+              if (!isComplete) {
+                setShowProfileAlert(true);
+              }
+            } else {
+              // Document doesn't exist, use token data
+              setUserName(defaultName);
+              setUserHandle("@" + defaultEmail);
+              
+              // Profile is incomplete if document doesn't exist
+              setIsProfileComplete(false);
+              setShowProfileAlert(true);
             }
           } catch (error) {
             console.error("Error fetching user profile:", error);
+            // Fallback to token data
+            setUserName(defaultName);
+            setUserHandle("@" + defaultEmail);
+            
+            setIsProfileComplete(false);
+            setShowProfileAlert(true);
           }
         }
       } catch (error) {
@@ -97,6 +151,17 @@ export default function CreatePost() {
     fetchUserData();
   }, [router]);
 
+  const checkProfileComplete = (userData) => {
+    for (const field of requiredFields) {
+      if (!userData[field] || 
+          (Array.isArray(userData[field]) && userData[field].length === 0) ||
+          (typeof userData[field] === 'string' && userData[field].trim() === '')) {
+        return false;
+      }
+    }
+    return true;
+  };
+
   const showAlert = (type, title, message) => {
     setAlert({
       show: true,
@@ -110,16 +175,24 @@ export default function CreatePost() {
     }, 5000);
   };
 
+  const handleRedirectToProfile = () => {
+    router.push("/edit-profile");
+  };
+
   const handleImageUpload = (e) => {
+    if (!isProfileComplete) {
+      setShowProfileAlert(true);
+      return;
+    }
+    
     if (e.target && e.target.files && e.target.files.length > 0) {
       setIsLoading(true);
 
       const files = Array.from(e.target.files);
       
-      // Validate file types and sizes
       const validFiles = files.filter(file => {
         const isValidType = file.type.startsWith('image/');
-        const isValidSize = file.size <= 5 * 1024 * 1024; // 5MB limit
+        const isValidSize = file.size <= 10 * 1024 * 1024; 
         return isValidType && isValidSize;
       });
       
@@ -136,15 +209,14 @@ export default function CreatePost() {
         return;
       }
       
-      // Limit the number of images to 5
       const totalImages = imageFiles.length + validFiles.length;
       if (totalImages > 10) {
         showAlert(
           "error",
           "Too Many Images",
-          "You can only upload a maximum of 5 images per post."
+          "You can only upload a maximum of 10 images per post."
         );
-        const allowedNewFiles = validFiles.slice(0, 5 - imageFiles.length);
+        const allowedNewFiles = validFiles.slice(0, 10 - imageFiles.length);
         setImageFiles((prevFiles) => [...prevFiles, ...allowedNewFiles]);
         
         const newImagePreviews = allowedNewFiles.map((file) => URL.createObjectURL(file));
@@ -180,7 +252,6 @@ export default function CreatePost() {
     for (const file of imageFiles) {
       const timestamp = new Date().getTime();
       const fileExtension = file.name.split(".").pop();
-      // Use a more secure naming convention
       const randomString = crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2, 15);
       const fileName = `${userId}/${timestamp}-${randomString}.${fileExtension}`;
 
@@ -193,8 +264,12 @@ export default function CreatePost() {
     return imageUrls;
   };
 
-
   const handlePublish = async () => {
+    if (!isProfileComplete) {
+      setShowProfileAlert(true);
+      return;
+    }
+    
     if (!title.trim()) {
       showAlert("error", "Missing Title", "Please add a title to your post");
       return;
@@ -231,7 +306,6 @@ export default function CreatePost() {
         imageUrls = await uploadImagesToStorage();
       }
 
-      // Sanitize inputs before storing in the database
       const sanitizedTitle = title.trim();
       const sanitizedContent = postContent.trim();
       
@@ -286,6 +360,41 @@ export default function CreatePost() {
           <AlertDescription>{alert.message}</AlertDescription>
         </Alert>
       )}
+      
+      {/* Persistent profile completion warning */}
+      {!isProfileComplete && (
+        <Alert className="mb-4 bg-red-50 text-red-900 border-red-200">
+          <AlertTitle>Profile Incomplete</AlertTitle>
+          <AlertDescription className="flex justify-between items-center">
+            <span>You need to complete your profile before creating a post.</span>
+            <Button 
+              variant="destructive" 
+              size="sm" 
+              onClick={handleRedirectToProfile}
+              className="mt-2 sm:mt-0"
+            >
+              Complete Profile
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
+      
+      {showProfileAlert && (
+        <AlertDialog open={showProfileAlert} onOpenChange={setShowProfileAlert}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Complete Your Profile</AlertDialogTitle>
+              <AlertDialogDescription>
+                You need to complete your profile before creating a post. Would you like to go to your profile page now?
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={handleRedirectToProfile}>Yes, Complete Profile</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
 
       <Card className="shadow-md">
         <CardContent className="pt-6">
@@ -312,6 +421,7 @@ export default function CreatePost() {
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               maxLength={100}
+              disabled={!isProfileComplete}
             />
 
             <Textarea
@@ -320,6 +430,7 @@ export default function CreatePost() {
               value={postContent}
               onChange={(e) => setPostContent(e.target.value)}
               maxLength={5000}
+              disabled={!isProfileComplete}
             />
 
             <MultipleSelector
@@ -328,6 +439,7 @@ export default function CreatePost() {
               creatable
               value={selectedTags}
               onChange={setSelectedTags}
+              disabled={!isProfileComplete}
               emptyIndicator={
                 <p className="text-center text-lg leading-10 text-gray-600 dark:text-gray-400">
                   no results found.
@@ -361,6 +473,7 @@ export default function CreatePost() {
                     onClick={() => removeImage(index)}
                     className="absolute top-1 right-1 bg-black/50 rounded-full p-1 text-white"
                     aria-label="Remove image"
+                    disabled={!isProfileComplete}
                   >
                     <X className="h-4 w-4" />
                   </button>
@@ -379,12 +492,19 @@ export default function CreatePost() {
               className="hidden"
               ref={fileInputRef}
               onChange={handleImageUpload}
+              disabled={!isProfileComplete}
             />
             <Button
               variant="outline"
               size="sm"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={isLoading || isSubmitting || imageFiles.length >= 5}
+              onClick={() => {
+                if (isProfileComplete) {
+                  fileInputRef.current?.click();
+                } else {
+                  setShowProfileAlert(true);
+                }
+              }}
+              disabled={isLoading || isSubmitting || imageFiles.length >= 10 || !isProfileComplete}
               aria-label="Add image"
             >
               {isLoading ? (
@@ -403,6 +523,7 @@ export default function CreatePost() {
           <Button
             onClick={handlePublish}
             disabled={
+              !isProfileComplete ||
               !title.trim() ||
               !postContent.trim() ||
               selectedTags.length === 0 ||
